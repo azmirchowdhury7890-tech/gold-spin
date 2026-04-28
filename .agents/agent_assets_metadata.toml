@@ -1,0 +1,13 @@
+uploads = []
+
+[[generated]]
+id = "WuL_RafR7i_arcooyVHPt"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "rewards app icon"
+
+[[outputs]]
+id = "IF13tDkm7MzP9PLgDVjYh"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "Goldspin App Icon"
