@@ -2,8 +2,8 @@ export type Language = "en" | "bn";
 
 export const translations = {
   en: {
-    appName: "Goldspin",
-    tagline: "Spin. Scratch. Earn.",
+    appName: "SonarSpin",
+    tagline: "Spin. Scratch. Earn Gold.",
     home: "Home",
     spin: "Spin",
     scratch: "Scratch",
@@ -95,8 +95,8 @@ export const translations = {
     extraSpinGranted: "Extra spin unlocked!",
   },
   bn: {
-    appName: "গোল্ডস্পিন",
-    tagline: "ঘুরান। স্ক্র্যাচ করুন। আয় করুন।",
+    appName: "সোনার স্পিন",
+    tagline: "ঘুরান। স্ক্র্যাচ করুন। সোনার টাকা জিতুন।",
     home: "হোম",
     spin: "স্পিন",
     scratch: "স্ক্র্যাচ",
