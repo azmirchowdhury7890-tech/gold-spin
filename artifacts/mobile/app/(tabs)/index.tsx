@@ -16,8 +16,9 @@ import { AdBanner } from "@/components/AdBanner";
 import { Header } from "@/components/Header";
 import { RewardedAdModal } from "@/components/RewardedAdModal";
 import {
-  DAILY_SCRATCH_LIMIT,
   DAILY_SPIN_LIMIT,
+  coinsToBdt,
+  coinsToUsd,
   useApp,
 } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -38,6 +39,7 @@ export default function HomeScreen() {
     spinsUsed,
     scratchesUsed,
     adClaimedToday,
+    claimAdReward,
   } = useApp();
   const [adVisible, setAdVisible] = useState(false);
 
@@ -75,6 +77,8 @@ export default function HomeScreen() {
   ];
 
   const bottomPad = (Platform.OS === "web" ? 84 : 72) + 20;
+  const bdtValue = coinsToBdt(coins);
+  const usdValue = coinsToUsd(coins);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -99,14 +103,20 @@ export default function HomeScreen() {
         >
           <View style={styles.balanceTop}>
             <View>
-              <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>
+              <Text
+                style={[styles.balanceLabel, { color: colors.mutedForeground }]}
+              >
                 {t("balance")}
               </Text>
               <View style={styles.balanceRow}>
-                <View style={[styles.coinBig, { backgroundColor: colors.gold }]}>
+                <View
+                  style={[styles.coinBig, { backgroundColor: colors.gold }]}
+                >
                   <Text style={styles.coinGlyph}>৳</Text>
                 </View>
-                <Text style={[styles.balanceValue, { color: colors.foreground }]}>
+                <Text
+                  style={[styles.balanceValue, { color: colors.foreground }]}
+                >
                   {formatNumber(coins, language)}
                 </Text>
               </View>
@@ -115,12 +125,68 @@ export default function HomeScreen() {
               </Text>
             </View>
             <View style={[styles.streakBadge, { borderColor: colors.gold }]}>
-              <MaterialCommunityIcons name="fire" size={16} color={colors.gold} />
+              <MaterialCommunityIcons
+                name="fire"
+                size={16}
+                color={colors.gold}
+              />
               <Text style={[styles.streakNumber, { color: colors.gold }]}>
                 {formatNumber(streak, language)}
               </Text>
-              <Text style={[styles.streakLabel, { color: colors.mutedForeground }]}>
+              <Text
+                style={[styles.streakLabel, { color: colors.mutedForeground }]}
+              >
                 {t("streakDays")}
+              </Text>
+            </View>
+          </View>
+
+          {/* Equivalent currency row */}
+          <View style={styles.equivRow}>
+            <View
+              style={[
+                styles.equivPill,
+                {
+                  backgroundColor: "rgba(212,175,55,0.10)",
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.equivCurrency, { color: colors.gold }]}>
+                ৳
+              </Text>
+              <Text
+                style={[styles.equivValue, { color: colors.foreground }]}
+              >
+                {formatNumber(Math.floor(bdtValue * 100) / 100, language)}
+              </Text>
+              <Text
+                style={[styles.equivLabel, { color: colors.mutedForeground }]}
+              >
+                {t("bdt")}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.equivPill,
+                {
+                  backgroundColor: "rgba(212,175,55,0.10)",
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.equivCurrency, { color: colors.gold }]}>
+                $
+              </Text>
+              <Text
+                style={[styles.equivValue, { color: colors.foreground }]}
+              >
+                {usdValue.toFixed(4)}
+              </Text>
+              <Text
+                style={[styles.equivLabel, { color: colors.mutedForeground }]}
+              >
+                {t("usd")}
               </Text>
             </View>
           </View>
@@ -129,21 +195,35 @@ export default function HomeScreen() {
 
           <View style={styles.statsRow}>
             <View style={styles.stat}>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
+              <Text
+                style={[styles.statLabel, { color: colors.mutedForeground }]}
+              >
                 {t("todaysEarnings")}
               </Text>
               <Text style={[styles.statValue, { color: colors.foreground }]}>
                 +{formatNumber(todayEarnings, language)}
               </Text>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+            <View
+              style={[
+                styles.statDivider,
+                { backgroundColor: colors.border },
+              ]}
+            />
             <View style={styles.stat}>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
+              <Text
+                style={[styles.statLabel, { color: colors.mutedForeground }]}
+              >
                 {t("dailySpinsLeft")}
               </Text>
               <Text style={[styles.statValue, { color: colors.foreground }]}>
-                {formatNumber(Math.max(0, DAILY_SPIN_LIMIT - spinsUsed), language)}
-                <Text style={[styles.statSub, { color: colors.mutedForeground }]}>
+                {formatNumber(
+                  Math.max(0, DAILY_SPIN_LIMIT - spinsUsed),
+                  language,
+                )}
+                <Text
+                  style={[styles.statSub, { color: colors.mutedForeground }]}
+                >
                   {" "}
                   / {formatNumber(DAILY_SPIN_LIMIT, language)}
                 </Text>
@@ -223,7 +303,9 @@ export default function HomeScreen() {
                 <Text style={[styles.taskTitle, { color: colors.foreground }]}>
                   {task.title}
                 </Text>
-                <View style={[styles.progressBg, { backgroundColor: colors.muted }]}>
+                <View
+                  style={[styles.progressBg, { backgroundColor: colors.muted }]}
+                >
                   <View
                     style={[
                       styles.progressFill,
@@ -291,8 +373,12 @@ export default function HomeScreen() {
       <RewardedAdModal
         visible={adVisible}
         onClose={() => setAdVisible(false)}
-        reward={REWARDED_AD_REWARD}
-        onClaimed={() => {}}
+        duration={5}
+        title={t("rewardedAdTitle")}
+        body={t("rewardedAdBody")}
+        rewardLabel={`+${formatNumber(REWARDED_AD_REWARD, language)} ${t("coins")}`}
+        ctaLabel={`${t("watchAd")} · +${formatNumber(REWARDED_AD_REWARD, language)}`}
+        onCompleted={() => claimAdReward(REWARDED_AD_REWARD)}
       />
     </View>
   );
@@ -322,10 +408,7 @@ function QuickAction({
         colors={["#1F1F2C", "#15151F"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[
-          styles.quick,
-          { borderColor: colors.border },
-        ]}
+        style={[styles.quick, { borderColor: colors.border }]}
       >
         <View style={[styles.quickIcon, { borderColor: colors.gold }]}>
           {icon}
@@ -403,6 +486,37 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: "uppercase",
     marginTop: 2,
+  },
+  equivRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  equivPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  equivCurrency: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
+  },
+  equivValue: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 16,
+    letterSpacing: -0.2,
+  },
+  equivLabel: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 10,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginLeft: "auto",
   },
   streakBadge: {
     alignItems: "center",

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AdBanner } from "@/components/AdBanner";
 import { Header } from "@/components/Header";
 import { RewardModal } from "@/components/RewardModal";
+import { RewardedAdModal } from "@/components/RewardedAdModal";
 import { SpinWheel, type SpinWheelHandle } from "@/components/SpinWheel";
 import { DAILY_SPIN_LIMIT, useApp } from "@/contexts/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -38,14 +39,18 @@ export default function SpinScreen() {
   const {
     t,
     language,
-    spinsLeft,
+    freeSpinsLeft,
+    bonusSpinsLeft,
+    totalSpinsLeft,
     recordSpinUsed,
+    grantBonusSpin,
     addCoins,
   } = useApp();
   const wheelRef = useRef<SpinWheelHandle>(null);
   const [spinning, setSpinning] = useState(false);
   const [reward, setReward] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
+  const [adVisible, setAdVisible] = useState(false);
 
   const screenW = Dimensions.get("window").width;
   const wheelSize = Math.min(screenW - 60, 320);
@@ -60,7 +65,12 @@ export default function SpinScreen() {
   );
 
   const onSpin = async () => {
-    if (spinning || spinsLeft <= 0) return;
+    if (spinning) return;
+    if (totalSpinsLeft <= 0) {
+      // Open ad to earn bonus spin
+      setAdVisible(true);
+      return;
+    }
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     }
@@ -81,14 +91,32 @@ export default function SpinScreen() {
     });
   };
 
+  const onAdCompleted = async () => {
+    await grantBonusSpin();
+  };
+
   const bottomPad = (Platform.OS === "web" ? 84 : 72) + 20;
-  const canSpin = spinsLeft > 0 && !spinning;
+  const needsAd = totalSpinsLeft <= 0;
+  const isBonusOnly = freeSpinsLeft === 0 && bonusSpinsLeft > 0;
+  const ctaLabel = spinning
+    ? t("spinning")
+    : needsAd
+      ? t("watchAdForSpin")
+      : isBonusOnly
+        ? `${t("bonusSpin")}`
+        : t("spinNow");
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Header
         title={t("spinAndWin")}
-        subtitle={`${formatNumber(spinsLeft, language)} / ${formatNumber(DAILY_SPIN_LIMIT, language)} ${t("dailySpinsLeft").toLowerCase()}`}
+        subtitle={`${t("freeSpinsLeft")}: ${formatNumber(freeSpinsLeft, language)}${
+          bonusSpinsLeft > 0
+            ? ` · +${formatNumber(bonusSpinsLeft, language)} ${t("bonusSpin")}`
+            : needsAd
+              ? ` · ${t("watchAdForMore")}`
+              : ""
+        }`}
       />
       <ScrollView
         contentContainerStyle={[
@@ -97,21 +125,44 @@ export default function SpinScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero pillar */}
         <LinearGradient
           colors={["#1A1626", "#0B0B14"]}
           style={[styles.hero, { borderColor: colors.border }]}
         >
           <View style={styles.spinsTop}>
             <View style={[styles.spinsPill, { borderColor: colors.gold }]}>
-              <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.gold} />
+              <MaterialCommunityIcons
+                name="lightning-bolt"
+                size={14}
+                color={colors.gold}
+              />
               <Text style={[styles.spinsText, { color: colors.gold }]}>
-                {formatNumber(spinsLeft, language)} {t("spin").toUpperCase()}
+                {formatNumber(freeSpinsLeft, language)} / {formatNumber(DAILY_SPIN_LIMIT, language)} {t("freeSpinsLeft").toUpperCase()}
               </Text>
             </View>
-            <Text style={[styles.perSpin, { color: colors.mutedForeground }]}>
-              {t("perSpin")} · 5–100 {t("coins")}
-            </Text>
+            {bonusSpinsLeft > 0 ? (
+              <View
+                style={[
+                  styles.bonusPill,
+                  { backgroundColor: colors.gold },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="gift"
+                  size={12}
+                  color="#0B0B14"
+                />
+                <Text style={styles.bonusPillText}>
+                  +{formatNumber(bonusSpinsLeft, language)} {t("bonusSpin").toUpperCase()}
+                </Text>
+              </View>
+            ) : (
+              <Text
+                style={[styles.perSpin, { color: colors.mutedForeground }]}
+              >
+                5–100 {t("coins")}
+              </Text>
+            )}
           </View>
 
           <View style={styles.wheelArea}>
@@ -125,37 +176,39 @@ export default function SpinScreen() {
 
           <Pressable
             onPress={onSpin}
-            disabled={!canSpin}
+            disabled={spinning}
             style={({ pressed }) => [
               styles.spinBtnWrap,
-              { opacity: canSpin ? (pressed ? 0.9 : 1) : 0.5 },
+              { opacity: spinning ? 0.6 : pressed ? 0.9 : 1 },
             ]}
             testID="spin-button"
           >
             <LinearGradient
-              colors={["#FFD86B", "#D4AF37", "#8C6F1B"]}
+              colors={
+                needsAd
+                  ? ["#FF9D5C", "#E07A2C", "#9C4F12"]
+                  : ["#FFD86B", "#D4AF37", "#8C6F1B"]
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.spinBtn}
             >
-              <MaterialCommunityIcons
-                name={spinning ? "loading" : "rotate-360"}
-                size={22}
-                color="#0B0B14"
-              />
-              <Text style={styles.spinBtnText}>
-                {spinning
-                  ? t("spinning")
-                  : spinsLeft > 0
-                    ? t("spinNow")
-                    : t("noSpinsLeft")}
-              </Text>
+              {needsAd ? (
+                <Feather name="gift" size={20} color="#0B0B14" />
+              ) : (
+                <MaterialCommunityIcons
+                  name={spinning ? "loading" : "rotate-360"}
+                  size={22}
+                  color="#0B0B14"
+                />
+              )}
+              <Text style={styles.spinBtnText}>{ctaLabel}</Text>
             </LinearGradient>
           </Pressable>
 
-          {spinsLeft <= 0 && (
+          {needsAd && (
             <Text style={[styles.helpText, { color: colors.mutedForeground }]}>
-              {t("comeBackTomorrow")}
+              {t("watchAdSpinBody")}
             </Text>
           )}
         </LinearGradient>
@@ -167,6 +220,17 @@ export default function SpinScreen() {
         visible={modalVisible}
         reward={reward}
         onClose={() => setModalVisible(false)}
+      />
+
+      <RewardedAdModal
+        visible={adVisible}
+        onClose={() => setAdVisible(false)}
+        duration={15}
+        title={t("watchAdSpinTitle")}
+        body={t("watchAdSpinBody")}
+        rewardLabel={`+${t("extraSpin")}`}
+        ctaLabel={t("watchAdForSpin")}
+        onCompleted={onAdCompleted}
       />
     </View>
   );
@@ -192,6 +256,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
   },
   spinsPill: {
     flexDirection: "row",
@@ -205,6 +270,20 @@ const styles = StyleSheet.create({
   spinsText: {
     fontFamily: "Inter_700Bold",
     fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  bonusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  bonusPillText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    color: "#0B0B14",
     letterSpacing: 0.5,
   },
   perSpin: {

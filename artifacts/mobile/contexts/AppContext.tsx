@@ -20,6 +20,7 @@ const STORAGE_KEYS = {
   todayEarnings: "@goldspin/todayEarnings",
   spinDate: "@goldspin/spinDate",
   spinsUsed: "@goldspin/spinsUsed",
+  bonusSpinsEarned: "@goldspin/bonusSpinsEarned",
   scratchDate: "@goldspin/scratchDate",
   scratchesUsed: "@goldspin/scratchesUsed",
   adClaimedDate: "@goldspin/adClaimedDate",
@@ -30,7 +31,29 @@ const STORAGE_KEYS = {
 
 export const DAILY_SPIN_LIMIT = 5;
 export const DAILY_SCRATCH_LIMIT = 5;
-export const MIN_WITHDRAW = 1000;
+
+// Currency conversion
+// 1,000 Coins = 1 BDT (so 1 coin = 0.001 BDT)
+// 1,000 Coins = $0.0085 USD (so 1 coin = 0.0000085 USD)
+export const COINS_PER_BDT = 1000;
+export const USD_PER_COIN = 0.0000085;
+export const MIN_WITHDRAW = 100_000; // 100 BDT or ~$0.85 USD
+
+export type CurrencyCode = "BDT" | "USD";
+export type WithdrawMethod = "bkash" | "nagad" | "binance" | "paypal";
+
+export const METHODS_BY_CURRENCY: Record<CurrencyCode, WithdrawMethod[]> = {
+  BDT: ["bkash", "nagad"],
+  USD: ["binance", "paypal"],
+};
+
+export function coinsToBdt(coins: number): number {
+  return coins / COINS_PER_BDT;
+}
+
+export function coinsToUsd(coins: number): number {
+  return coins * USD_PER_COIN;
+}
 
 export type TxnType = "spin" | "scratch" | "ad" | "withdraw" | "bonus";
 
@@ -39,6 +62,7 @@ export type Transaction = {
   type: TxnType;
   amount: number;
   timestamp: number;
+  meta?: { currency?: CurrencyCode; method?: WithdrawMethod; payout?: number };
 };
 
 type Ctx = {
@@ -56,14 +80,23 @@ type Ctx = {
   scratchesUsed: number;
   adClaimedToday: boolean;
 
-  spinsLeft: number;
+  freeSpinsLeft: number;
+  bonusSpinsEarned: number;
+  bonusSpinsLeft: number;
+  totalSpinsLeft: number;
   scratchesLeft: number;
 
   addCoins: (amount: number, type: TxnType) => Promise<void>;
   recordSpinUsed: () => Promise<void>;
   recordScratchUsed: () => Promise<void>;
   claimAdReward: (amount: number) => Promise<boolean>;
-  withdraw: (amount: number) => Promise<boolean>;
+  grantBonusSpin: () => Promise<void>;
+  withdraw: (
+    coinAmount: number,
+    currency: CurrencyCode,
+    method: WithdrawMethod,
+    payout: number,
+  ) => Promise<boolean>;
 
   transactions: Transaction[];
 };
@@ -85,6 +118,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [coins, setCoins] = useState<number>(0);
   const [todayEarnings, setTodayEarnings] = useState<number>(0);
   const [spinsUsed, setSpinsUsed] = useState<number>(0);
+  const [bonusSpinsEarned, setBonusSpinsEarned] = useState<number>(0);
   const [scratchesUsed, setScratchesUsed] = useState<number>(0);
   const [adClaimedToday, setAdClaimedToday] = useState<boolean>(false);
   const [streak, setStreak] = useState<number>(0);
@@ -100,6 +134,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           earningsStr,
           spinDate,
           spinsStr,
+          bonusStr,
           scratchDate,
           scratchesStr,
           adDate,
@@ -112,6 +147,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(STORAGE_KEYS.todayEarnings),
           AsyncStorage.getItem(STORAGE_KEYS.spinDate),
           AsyncStorage.getItem(STORAGE_KEYS.spinsUsed),
+          AsyncStorage.getItem(STORAGE_KEYS.bonusSpinsEarned),
           AsyncStorage.getItem(STORAGE_KEYS.scratchDate),
           AsyncStorage.getItem(STORAGE_KEYS.scratchesUsed),
           AsyncStorage.getItem(STORAGE_KEYS.adClaimedDate),
@@ -125,10 +161,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         if (spinDate === today && spinsStr) {
           setSpinsUsed(Number(spinsStr) || 0);
+          setBonusSpinsEarned(bonusStr ? Number(bonusStr) || 0 : 0);
         } else {
           setSpinsUsed(0);
+          setBonusSpinsEarned(0);
           await AsyncStorage.setItem(STORAGE_KEYS.spinDate, today);
           await AsyncStorage.setItem(STORAGE_KEYS.spinsUsed, "0");
+          await AsyncStorage.setItem(STORAGE_KEYS.bonusSpinsEarned, "0");
         }
 
         if (scratchDate === today && scratchesStr) {
@@ -210,8 +249,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [language],
   );
 
-  const addCoins = useCallback(
-    async (amount: number, type: TxnType) => {
+  const addCoinsCore = useCallback(
+    async (
+      amount: number,
+      type: TxnType,
+      meta?: Transaction["meta"],
+    ) => {
       if (amount === 0) return;
       let nextCoins = 0;
       let nextEarnings = 0;
@@ -230,6 +273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         type,
         amount,
         timestamp: Date.now(),
+        meta,
       };
       setTransactions((prev) => {
         const next = [txn, ...prev].slice(0, 50);
@@ -247,6 +291,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [persistTxns],
   );
 
+  const addCoins = useCallback(
+    async (amount: number, type: TxnType) => {
+      await addCoinsCore(amount, type);
+    },
+    [addCoinsCore],
+  );
+
   const recordSpinUsed = useCallback(async () => {
     const next = spinsUsed + 1;
     setSpinsUsed(next);
@@ -261,25 +312,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEYS.scratchesUsed, String(next));
   }, [scratchesUsed]);
 
+  const grantBonusSpin = useCallback(async () => {
+    const next = bonusSpinsEarned + 1;
+    setBonusSpinsEarned(next);
+    await AsyncStorage.setItem(STORAGE_KEYS.spinDate, todayKey());
+    await AsyncStorage.setItem(STORAGE_KEYS.bonusSpinsEarned, String(next));
+  }, [bonusSpinsEarned]);
+
   const claimAdReward = useCallback(
     async (amount: number) => {
       if (adClaimedToday) return false;
       setAdClaimedToday(true);
       await AsyncStorage.setItem(STORAGE_KEYS.adClaimedDate, todayKey());
-      await addCoins(amount, "ad");
+      await addCoinsCore(amount, "ad");
       return true;
     },
-    [adClaimedToday, addCoins],
+    [adClaimedToday, addCoinsCore],
   );
 
   const withdraw = useCallback(
-    async (amount: number) => {
-      if (coins < amount || amount < MIN_WITHDRAW) return false;
-      await addCoins(-amount, "withdraw");
+    async (
+      coinAmount: number,
+      currency: CurrencyCode,
+      method: WithdrawMethod,
+      payout: number,
+    ) => {
+      if (coins < coinAmount || coinAmount < MIN_WITHDRAW) return false;
+      await addCoinsCore(-coinAmount, "withdraw", {
+        currency,
+        method,
+        payout,
+      });
       return true;
     },
-    [coins, addCoins],
+    [coins, addCoinsCore],
   );
+
+  const freeSpinsLeft = Math.max(0, DAILY_SPIN_LIMIT - spinsUsed);
+  const bonusSpinsLeft = Math.max(
+    0,
+    bonusSpinsEarned - Math.max(0, spinsUsed - DAILY_SPIN_LIMIT),
+  );
+  const totalSpinsLeft = freeSpinsLeft + bonusSpinsLeft;
 
   const value = useMemo<Ctx>(
     () => ({
@@ -294,12 +368,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       spinsUsed,
       scratchesUsed,
       adClaimedToday,
-      spinsLeft: Math.max(0, DAILY_SPIN_LIMIT - spinsUsed),
+      freeSpinsLeft,
+      bonusSpinsEarned,
+      bonusSpinsLeft,
+      totalSpinsLeft,
       scratchesLeft: Math.max(0, DAILY_SCRATCH_LIMIT - scratchesUsed),
       addCoins,
       recordSpinUsed,
       recordScratchUsed,
       claimAdReward,
+      grantBonusSpin,
       withdraw,
       transactions,
     }),
@@ -315,10 +393,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       spinsUsed,
       scratchesUsed,
       adClaimedToday,
+      freeSpinsLeft,
+      bonusSpinsEarned,
+      bonusSpinsLeft,
+      totalSpinsLeft,
       addCoins,
       recordSpinUsed,
       recordScratchUsed,
       claimAdReward,
+      grantBonusSpin,
       withdraw,
       transactions,
     ],

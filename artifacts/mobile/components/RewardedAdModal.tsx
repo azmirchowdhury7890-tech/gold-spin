@@ -19,27 +19,45 @@ import { formatNumber } from "@/i18n/translations";
 type Props = {
   visible: boolean;
   onClose: () => void;
-  reward: number;
-  onClaimed: () => void;
+  duration?: number; // seconds, default 5
+  title: string;
+  body: string;
+  rewardLabel: string;
+  ctaLabel?: string;
+  onCompleted: () => void | Promise<void>;
 };
 
-export function RewardedAdModal({ visible, onClose, reward, onClaimed }: Props) {
+export function RewardedAdModal({
+  visible,
+  onClose,
+  duration = 5,
+  title,
+  body,
+  rewardLabel,
+  ctaLabel,
+  onCompleted,
+}: Props) {
   const colors = useColors();
-  const { t, language, claimAdReward } = useApp();
+  const { t, language } = useApp();
   const [phase, setPhase] = useState<"intro" | "playing" | "done">("intro");
-  const [seconds, setSeconds] = useState(5);
+  const [seconds, setSeconds] = useState(duration);
 
   useEffect(() => {
     if (!visible) {
       setPhase("intro");
-      setSeconds(5);
+      setSeconds(duration);
     }
-  }, [visible]);
+  }, [visible, duration]);
 
   useEffect(() => {
     if (phase !== "playing") return;
     if (seconds <= 0) {
       setPhase("done");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        ).catch(() => {});
+      }
       return;
     }
     const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
@@ -51,19 +69,20 @@ export function RewardedAdModal({ visible, onClose, reward, onClaimed }: Props) 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     }
     setPhase("playing");
-    setSeconds(5);
+    setSeconds(duration);
   };
 
   const claim = async () => {
-    const ok = await claimAdReward(reward);
     if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
-        () => {},
-      );
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => {});
     }
-    if (ok) onClaimed();
+    await onCompleted();
     onClose();
   };
+
+  const progress = duration > 0 ? 1 - seconds / duration : 0;
 
   return (
     <Modal
@@ -73,29 +92,43 @@ export function RewardedAdModal({ visible, onClose, reward, onClaimed }: Props) 
       onRequestClose={onClose}
     >
       <View style={styles.backdrop}>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
           <Pressable
             onPress={onClose}
-            style={[styles.closeBtn, { backgroundColor: colors.surfaceElevated }]}
+            style={[
+              styles.closeBtn,
+              { backgroundColor: colors.surfaceElevated },
+            ]}
             accessibilityLabel="Close"
+            disabled={phase === "playing"}
           >
-            <Feather name="x" size={18} color={colors.foreground} />
+            <Feather
+              name="x"
+              size={18}
+              color={
+                phase === "playing"
+                  ? colors.mutedForeground
+                  : colors.foreground
+              }
+            />
           </Pressable>
 
-          <LinearGradient
-            colors={["#2A210F", "#1B1B28"]}
-            style={styles.adArea}
-          >
+          <LinearGradient colors={["#2A210F", "#1B1B28"]} style={styles.adArea}>
             {phase === "intro" ? (
               <>
                 <View style={[styles.iconBig, { borderColor: colors.gold }]}>
                   <Feather name="play" size={36} color={colors.gold} />
                 </View>
                 <Text style={[styles.titleBig, { color: colors.foreground }]}>
-                  {t("rewardedAdTitle")}
+                  {title}
                 </Text>
                 <Text style={[styles.body, { color: colors.mutedForeground }]}>
-                  {t("rewardedAdBody")}
+                  {body}
                 </Text>
               </>
             ) : phase === "playing" ? (
@@ -107,17 +140,41 @@ export function RewardedAdModal({ visible, onClose, reward, onClaimed }: Props) 
                 <Text style={[styles.body, { color: colors.mutedForeground }]}>
                   {formatNumber(seconds, language)}s
                 </Text>
+                <View
+                  style={[
+                    styles.progressBg,
+                    { backgroundColor: "rgba(255,255,255,0.08)" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        backgroundColor: colors.gold,
+                        width: `${progress * 100}%`,
+                      },
+                    ]}
+                  />
+                </View>
               </>
             ) : (
               <>
-                <View style={[styles.iconBig, { borderColor: colors.gold, backgroundColor: "#2A210F" }]}>
-                  <Feather name="check" size={36} color={colors.gold} />
+                <View
+                  style={[
+                    styles.iconBig,
+                    {
+                      borderColor: colors.gold,
+                      backgroundColor: "#2A210F",
+                    },
+                  ]}
+                >
+                  <Feather name="award" size={36} color={colors.gold} />
                 </View>
                 <Text style={[styles.titleBig, { color: colors.foreground }]}>
                   {t("congratulations")}
                 </Text>
                 <Text style={[styles.body, { color: colors.gold }]}>
-                  +{formatNumber(reward, language)} {t("coins")}
+                  {rewardLabel}
                 </Text>
               </>
             )}
@@ -129,12 +186,15 @@ export function RewardedAdModal({ visible, onClose, reward, onClaimed }: Props) 
                 onPress={start}
                 style={({ pressed }) => [
                   styles.cta,
-                  { backgroundColor: colors.gold, opacity: pressed ? 0.85 : 1 },
+                  {
+                    backgroundColor: colors.gold,
+                    opacity: pressed ? 0.85 : 1,
+                  },
                 ]}
               >
                 <Feather name="play-circle" size={18} color="#0B0B14" />
                 <Text style={styles.ctaText}>
-                  {t("watchAd")} · +{formatNumber(reward, language)}
+                  {ctaLabel ?? t("watchAd")}
                 </Text>
               </Pressable>
             ) : phase === "done" ? (
@@ -142,7 +202,10 @@ export function RewardedAdModal({ visible, onClose, reward, onClaimed }: Props) 
                 onPress={claim}
                 style={({ pressed }) => [
                   styles.cta,
-                  { backgroundColor: colors.gold, opacity: pressed ? 0.85 : 1 },
+                  {
+                    backgroundColor: colors.gold,
+                    opacity: pressed ? 0.85 : 1,
+                  },
                 ]}
               >
                 <Feather name="award" size={18} color="#0B0B14" />
@@ -209,6 +272,17 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 14,
     textAlign: "center",
+  },
+  progressBg: {
+    height: 6,
+    borderRadius: 999,
+    overflow: "hidden",
+    width: "80%",
+    marginTop: 4,
+  },
+  progressFill: {
+    height: 6,
+    borderRadius: 999,
   },
   footer: {
     padding: 16,

@@ -68,6 +68,31 @@ export const translations = {
     perSpin: "per spin",
     perCard: "per card",
     bonus: "BONUS",
+
+    // Currency
+    selectCurrency: "Select Currency",
+    chooseMethod: "Choose payment method",
+    exchangeRate: "Exchange Rate",
+    equivalent: "Equivalent",
+    bdt: "BDT",
+    usd: "USD",
+    bkash: "bKash",
+    nagad: "Nagad",
+    binanceUsdt: "Binance (USDT)",
+    paypal: "PayPal",
+    youReceive: "You receive",
+    method: "Method",
+
+    // Watch-ad-to-spin
+    watchAdForSpin: "Watch Ad to Spin",
+    freeSpinsLeft: "Free Spins Left",
+    watchAdForMore: "Watch Ad for More",
+    bonusSpinsLeft: "Bonus Spins",
+    bonusSpin: "Bonus Spin",
+    extraSpin: "1 Extra Spin",
+    watchAdSpinTitle: "Earn an Extra Spin",
+    watchAdSpinBody: "Watch a 15-second ad to unlock 1 more spin",
+    extraSpinGranted: "Extra spin unlocked!",
   },
   bn: {
     appName: "গোল্ডস্পিন",
@@ -136,6 +161,31 @@ export const translations = {
     perSpin: "প্রতি স্পিন",
     perCard: "প্রতি কার্ড",
     bonus: "বোনাস",
+
+    // Currency
+    selectCurrency: "মুদ্রা নির্বাচন করুন",
+    chooseMethod: "পেমেন্ট পদ্ধতি বাছুন",
+    exchangeRate: "বিনিময় হার",
+    equivalent: "সমতুল্য",
+    bdt: "টাকা",
+    usd: "ডলার",
+    bkash: "বিকাশ",
+    nagad: "নগদ",
+    binanceUsdt: "বাইন্যান্স (ইউএসডিটি)",
+    paypal: "পেপ্যাল",
+    youReceive: "আপনি পাবেন",
+    method: "পদ্ধতি",
+
+    // Watch-ad-to-spin
+    watchAdForSpin: "স্পিনের জন্য বিজ্ঞাপন দেখুন",
+    freeSpinsLeft: "অবশিষ্ট ফ্রি স্পিন",
+    watchAdForMore: "আরো স্পিনের জন্য বিজ্ঞাপন দেখুন",
+    bonusSpinsLeft: "বোনাস স্পিন",
+    bonusSpin: "বোনাস স্পিন",
+    extraSpin: "১টি অতিরিক্ত স্পিন",
+    watchAdSpinTitle: "অতিরিক্ত স্পিন আয় করুন",
+    watchAdSpinBody: "১৫ সেকেন্ডের বিজ্ঞাপন দেখে আরো ১টি স্পিন আনলক করুন",
+    extraSpinGranted: "অতিরিক্ত স্পিন আনলক হয়েছে!",
   },
 } as const;
 
@@ -151,4 +201,13 @@ export function formatNumber(value: number, language: Language): string {
       .join("");
   }
   return value.toLocaleString("en-US");
+}
+
+export function formatBn(s: string, language: Language): string {
+  if (language !== "bn") return s;
+  const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  return s
+    .split("")
+    .map((c) => (/[0-9]/.test(c) ? bnDigits[Number(c)] : c))
+    .join("");
 }
