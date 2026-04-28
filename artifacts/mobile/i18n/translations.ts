@@ -2,7 +2,7 @@ export type Language = "en" | "bn";
 
 export const translations = {
   en: {
-    appName: "SonarSpin",
+    appName: "Gold Spin",
     tagline: "Spin. Scratch. Earn Gold.",
     home: "Home",
     spin: "Spin",
