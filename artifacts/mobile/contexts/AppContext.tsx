@@ -27,17 +27,20 @@ const STORAGE_KEYS = {
   streak: "@goldspin/streak",
   streakDate: "@goldspin/streakDate",
   txns: "@goldspin/txns",
+  inviteCode: "@goldspin/inviteCode",
+  redeemedCode: "@goldspin/redeemedCode",
+  invitesSent: "@goldspin/invitesSent",
+  inviteBonusEarned: "@goldspin/inviteBonusEarned",
 } as const;
 
 export const DAILY_SPIN_LIMIT = 5;
 export const DAILY_SCRATCH_LIMIT = 5;
+export const INVITE_REWARD = 100;
 
 // Currency conversion
-// 1,000 Coins = 1 BDT (so 1 coin = 0.001 BDT)
-// 1,000 Coins = $0.0085 USD (so 1 coin = 0.0000085 USD)
 export const COINS_PER_BDT = 1000;
 export const USD_PER_COIN = 0.0000085;
-export const MIN_WITHDRAW = 100_000; // 100 BDT or ~$0.85 USD
+export const MIN_WITHDRAW = 100_000;
 
 export type CurrencyCode = "BDT" | "USD";
 export type WithdrawMethod = "bkash" | "nagad" | "binance" | "paypal";
@@ -55,7 +58,7 @@ export function coinsToUsd(coins: number): number {
   return coins * USD_PER_COIN;
 }
 
-export type TxnType = "spin" | "scratch" | "ad" | "withdraw" | "bonus";
+export type TxnType = "spin" | "scratch" | "ad" | "withdraw" | "bonus" | "invite";
 
 export type Transaction = {
   id: string;
@@ -64,6 +67,10 @@ export type Transaction = {
   timestamp: number;
   meta?: { currency?: CurrencyCode; method?: WithdrawMethod; payout?: number };
 };
+
+export type RedeemResult =
+  | { ok: true }
+  | { ok: false; reason: "invalid" | "own" | "already" };
 
 type Ctx = {
   ready: boolean;
@@ -86,6 +93,11 @@ type Ctx = {
   totalSpinsLeft: number;
   scratchesLeft: number;
 
+  inviteCode: string;
+  redeemedCode: string | null;
+  invitesSent: number;
+  inviteBonusEarned: number;
+
   addCoins: (amount: number, type: TxnType) => Promise<void>;
   recordSpinUsed: () => Promise<void>;
   recordScratchUsed: () => Promise<void>;
@@ -97,6 +109,8 @@ type Ctx = {
     method: WithdrawMethod,
     payout: number,
   ) => Promise<boolean>;
+  redeemInviteCode: (code: string) => Promise<RedeemResult>;
+  recordInviteSent: () => Promise<void>;
 
   transactions: Transaction[];
 };
@@ -112,6 +126,28 @@ function makeId(): string {
   return Date.now().toString() + Math.random().toString(36).slice(2, 9);
 }
 
+const INVITE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function generateInviteCode(): string {
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += INVITE_CHARS[Math.floor(Math.random() * INVITE_CHARS.length)];
+  }
+  return code;
+}
+
+function normalizeCode(input: string): string {
+  return input.trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function isValidCodeFormat(code: string): boolean {
+  if (code.length !== 6) return false;
+  for (const c of code) {
+    if (!INVITE_CHARS.includes(c)) return false;
+  }
+  return true;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [language, setLanguageState] = useState<Language>("en");
@@ -123,6 +159,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [adClaimedToday, setAdClaimedToday] = useState<boolean>(false);
   const [streak, setStreak] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [inviteCode, setInviteCode] = useState<string>("");
+  const [redeemedCode, setRedeemedCode] = useState<string | null>(null);
+  const [invitesSent, setInvitesSent] = useState<number>(0);
+  const [inviteBonusEarned, setInviteBonusEarned] = useState<number>(0);
 
   useEffect(() => {
     (async () => {
@@ -141,6 +181,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           streakStr,
           streakDate,
           txnsStr,
+          codeStr,
+          redeemedStr,
+          invitesStr,
+          inviteBonusStr,
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.language),
           AsyncStorage.getItem(STORAGE_KEYS.coins),
@@ -154,6 +198,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(STORAGE_KEYS.streak),
           AsyncStorage.getItem(STORAGE_KEYS.streakDate),
           AsyncStorage.getItem(STORAGE_KEYS.txns),
+          AsyncStorage.getItem(STORAGE_KEYS.inviteCode),
+          AsyncStorage.getItem(STORAGE_KEYS.redeemedCode),
+          AsyncStorage.getItem(STORAGE_KEYS.invitesSent),
+          AsyncStorage.getItem(STORAGE_KEYS.inviteBonusEarned),
         ]);
 
         if (lang === "en" || lang === "bn") setLanguageState(lang);
@@ -218,6 +266,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             // ignore
           }
         }
+
+        // Invite code: generate once and persist
+        if (codeStr && isValidCodeFormat(codeStr)) {
+          setInviteCode(codeStr);
+        } else {
+          const next = generateInviteCode();
+          setInviteCode(next);
+          await AsyncStorage.setItem(STORAGE_KEYS.inviteCode, next);
+        }
+
+        if (redeemedStr) setRedeemedCode(redeemedStr);
+        if (invitesStr) setInvitesSent(Number(invitesStr) || 0);
+        if (inviteBonusStr)
+          setInviteBonusEarned(Number(inviteBonusStr) || 0);
       } finally {
         setReady(true);
       }
@@ -348,6 +410,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [coins, addCoinsCore],
   );
 
+  const redeemInviteCode = useCallback(
+    async (raw: string): Promise<RedeemResult> => {
+      const code = normalizeCode(raw);
+      if (!isValidCodeFormat(code)) return { ok: false, reason: "invalid" };
+      if (code === inviteCode) return { ok: false, reason: "own" };
+      if (redeemedCode) return { ok: false, reason: "already" };
+      setRedeemedCode(code);
+      await AsyncStorage.setItem(STORAGE_KEYS.redeemedCode, code);
+      await addCoinsCore(INVITE_REWARD, "invite");
+      return { ok: true };
+    },
+    [inviteCode, redeemedCode, addCoinsCore],
+  );
+
+  const recordInviteSent = useCallback(async () => {
+    // Local-only mock: each share grants the user the inviter-side bonus,
+    // since on a real backend the friend's signup would trigger this.
+    const nextSent = invitesSent + 1;
+    const nextBonus = inviteBonusEarned + INVITE_REWARD;
+    setInvitesSent(nextSent);
+    setInviteBonusEarned(nextBonus);
+    await AsyncStorage.setItem(STORAGE_KEYS.invitesSent, String(nextSent));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.inviteBonusEarned,
+      String(nextBonus),
+    );
+    await addCoinsCore(INVITE_REWARD, "invite");
+  }, [invitesSent, inviteBonusEarned, addCoinsCore]);
+
   const freeSpinsLeft = Math.max(0, DAILY_SPIN_LIMIT - spinsUsed);
   const bonusSpinsLeft = Math.max(
     0,
@@ -373,12 +464,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       bonusSpinsLeft,
       totalSpinsLeft,
       scratchesLeft: Math.max(0, DAILY_SCRATCH_LIMIT - scratchesUsed),
+      inviteCode,
+      redeemedCode,
+      invitesSent,
+      inviteBonusEarned,
       addCoins,
       recordSpinUsed,
       recordScratchUsed,
       claimAdReward,
       grantBonusSpin,
       withdraw,
+      redeemInviteCode,
+      recordInviteSent,
       transactions,
     }),
     [
@@ -397,12 +494,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       bonusSpinsEarned,
       bonusSpinsLeft,
       totalSpinsLeft,
+      inviteCode,
+      redeemedCode,
+      invitesSent,
+      inviteBonusEarned,
       addCoins,
       recordSpinUsed,
       recordScratchUsed,
       claimAdReward,
       grantBonusSpin,
       withdraw,
+      redeemInviteCode,
+      recordInviteSent,
       transactions,
     ],
   );

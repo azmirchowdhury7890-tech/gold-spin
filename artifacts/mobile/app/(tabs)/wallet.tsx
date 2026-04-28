@@ -594,6 +594,7 @@ function TxRow({ tx }: { tx: Transaction }) {
     ad: t("earnedFromAd"),
     withdraw: t("withdrawnAmount"),
     bonus: t("dailyBonus"),
+    invite: t("earnedFromInvite"),
   } as const;
   const iconMap = {
     spin: "rotate-360",
@@ -601,6 +602,7 @@ function TxRow({ tx }: { tx: Transaction }) {
     ad: "play-circle",
     withdraw: "arrow-up-right",
     bonus: "gift",
+    invite: "account-multiple-plus",
   } as const;
 
   const date = new Date(tx.timestamp);

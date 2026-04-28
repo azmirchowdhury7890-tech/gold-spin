@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AdBanner } from "@/components/AdBanner";
 import { Header } from "@/components/Header";
+import { InviteSheet } from "@/components/InviteSheet";
 import { RewardedAdModal } from "@/components/RewardedAdModal";
 import {
   DAILY_SPIN_LIMIT,
@@ -42,6 +43,7 @@ export default function HomeScreen() {
     claimAdReward,
   } = useApp();
   const [adVisible, setAdVisible] = useState(false);
+  const [inviteVisible, setInviteVisible] = useState(false);
 
   const tasks = [
     {
@@ -350,24 +352,30 @@ export default function HomeScreen() {
         </View>
 
         {/* Invite */}
-        <LinearGradient
-          colors={["#15151F", "#1F1F2C"]}
-          style={[styles.inviteCard, { borderColor: colors.border }]}
+        <Pressable
+          onPress={() => setInviteVisible(true)}
+          style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
         >
-          <View style={[styles.inviteIcon, { borderColor: colors.gold }]}>
-            <Feather name="user-plus" size={20} color={colors.gold} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.inviteTitle, { color: colors.foreground }]}>
-              {t("invite")}
-            </Text>
-            <Text
-              style={[styles.inviteBody, { color: colors.mutedForeground }]}
-            >
-              {t("inviteReward")}
-            </Text>
-          </View>
-        </LinearGradient>
+          <LinearGradient
+            colors={["#15151F", "#1F1F2C"]}
+            style={[styles.inviteCard, { borderColor: colors.gold }]}
+          >
+            <View style={[styles.inviteIcon, { borderColor: colors.gold }]}>
+              <Feather name="user-plus" size={20} color={colors.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.inviteTitle, { color: colors.foreground }]}>
+                {t("invite")}
+              </Text>
+              <Text
+                style={[styles.inviteBody, { color: colors.mutedForeground }]}
+              >
+                {t("inviteReward")}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.gold} />
+          </LinearGradient>
+        </Pressable>
       </ScrollView>
 
       <RewardedAdModal
@@ -379,6 +387,11 @@ export default function HomeScreen() {
         rewardLabel={`+${formatNumber(REWARDED_AD_REWARD, language)} ${t("coins")}`}
         ctaLabel={`${t("watchAd")} · +${formatNumber(REWARDED_AD_REWARD, language)}`}
         onCompleted={() => claimAdReward(REWARDED_AD_REWARD)}
+      />
+
+      <InviteSheet
+        visible={inviteVisible}
+        onClose={() => setInviteVisible(false)}
       />
     </View>
   );

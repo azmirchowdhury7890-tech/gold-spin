@@ -5,7 +5,8 @@ A premium dark-gold themed mobile rewards app (Expo + React Native) with bilingu
 ## Features
 
 - **Bilingual** — full EN/BN translation with toggle in the top header. Numbers also localize to Bengali digits.
-- **Home** — balance card with **BDT and USD equivalent pills**, daily streak, today's earnings, daily-spins-left chip, quick actions, daily task checklist (spin, scratch, watch ad), invite friends card, banner ad placeholder.
+- **Home** — balance card with **BDT and USD equivalent pills**, daily streak, today's earnings, daily-spins-left chip, quick actions, daily task checklist (spin, scratch, watch ad), tappable invite friends card (opens referral sheet), banner ad placeholder.
+- **Referral / Invite** — each player gets a unique 6-character invite code (auto-generated and persisted). Bottom-sheet UI with: big gold code display, **Copy** + **Share Code** buttons (uses native Share API on mobile, Web Share / clipboard on web), live stats for invites sent and bonus earned, a "How it works" 3-step explainer, and an **Apply code** input that validates format, blocks the user's own code, and prevents double-redeeming. Both sides earn **100 coins** when a friend joins.
 - **Spin & Win** — 3D-style gold wheel with 8 reward segments (5–100 coins), animated easing, **5 free spins/day**. After free spins are used the button switches to **"Watch Ad to Spin"** (orange gradient + gift icon) and a 15s rewarded ad grants 1 bonus spin. The header shows `Free Spins Left: X` and a `Watch Ad for More` hint when needed; bonus spins are tracked separately.
 - **Scratch & Win** — swipe-to-reveal scratch card, 8×8 cell grid, 45% reveal threshold, reward range 10–200 coins, 5 cards/day.
 - **Wallet — multi-currency withdraw** —
