@@ -1,4 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import React, {
   createContext,
   useCallback,
@@ -8,11 +16,13 @@ import React, {
   useState,
 } from "react";
 
+import { useAuth } from "@/contexts/AuthContext";
 import {
   type Language,
   type TranslationKey,
   translations,
 } from "@/i18n/translations";
+import { db } from "@/lib/firebase";
 
 const STORAGE_KEYS = {
   language: "@goldspin/language",
@@ -149,6 +159,9 @@ function isValidCodeFormat(code: string): boolean {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
+
   const [ready, setReady] = useState(false);
   const [language, setLanguageState] = useState<Language>("en");
   const [coins, setCoins] = useState<number>(0);
@@ -163,6 +176,85 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [redeemedCode, setRedeemedCode] = useState<string | null>(null);
   const [invitesSent, setInvitesSent] = useState<number>(0);
   const [inviteBonusEarned, setInviteBonusEarned] = useState<number>(0);
+
+  const syncUser = useCallback(
+    (updates: Record<string, unknown>) => {
+      if (!uid) return;
+      updateDoc(doc(db, "users", uid), {
+        ...updates,
+        lastActiveAt: serverTimestamp(),
+      }).catch(() => {
+        // best-effort sync; offline cache (AsyncStorage) keeps the UI working
+      });
+    },
+    [uid],
+  );
+
+  // Hydrate from Firestore when user signs in
+  useEffect(() => {
+    if (!uid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (cancelled || !snap.exists()) return;
+        const data = snap.data() as Record<string, unknown>;
+        const today = todayKey();
+
+        if (typeof data.coins === "number") setCoins(data.coins);
+
+        const sameSpinDay = data.spinDate === today;
+        if (sameSpinDay && typeof data.spinsUsed === "number") {
+          setSpinsUsed(data.spinsUsed);
+          setBonusSpinsEarned(
+            typeof data.bonusSpinsEarned === "number"
+              ? data.bonusSpinsEarned
+              : 0,
+          );
+        } else {
+          setSpinsUsed(0);
+          setBonusSpinsEarned(0);
+        }
+
+        const sameScratchDay = data.scratchDate === today;
+        if (sameScratchDay && typeof data.scratchesUsed === "number") {
+          setScratchesUsed(data.scratchesUsed);
+        } else {
+          setScratchesUsed(0);
+        }
+
+        setAdClaimedToday(data.adClaimedDate === today);
+
+        if ((sameSpinDay || sameScratchDay) && typeof data.todayEarnings === "number") {
+          setTodayEarnings(data.todayEarnings);
+        } else {
+          setTodayEarnings(0);
+        }
+
+        if (typeof data.streak === "number") setStreak(data.streak);
+        if (typeof data.invitesSent === "number") setInvitesSent(data.invitesSent);
+        if (typeof data.inviteBonusEarned === "number")
+          setInviteBonusEarned(data.inviteBonusEarned);
+        if (
+          typeof data.inviteCode === "string" &&
+          isValidCodeFormat(data.inviteCode)
+        ) {
+          setInviteCode(data.inviteCode);
+          await AsyncStorage.setItem(STORAGE_KEYS.inviteCode, data.inviteCode);
+        }
+        if (typeof data.redeemedCode === "string") {
+          setRedeemedCode(data.redeemedCode);
+        } else if (data.redeemedCode === null) {
+          setRedeemedCode(null);
+        }
+      } catch {
+        // ignore — local state remains
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uid]);
 
   useEffect(() => {
     (async () => {
@@ -349,8 +441,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           String(nextEarnings),
         );
       }
+      const updates: Record<string, unknown> = { coins: nextCoins };
+      if (amount > 0) updates.todayEarnings = nextEarnings;
+      syncUser(updates);
     },
-    [persistTxns],
+    [persistTxns, syncUser],
   );
 
   const addCoins = useCallback(
@@ -362,34 +457,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const recordSpinUsed = useCallback(async () => {
     const next = spinsUsed + 1;
+    const today = todayKey();
     setSpinsUsed(next);
-    await AsyncStorage.setItem(STORAGE_KEYS.spinDate, todayKey());
+    await AsyncStorage.setItem(STORAGE_KEYS.spinDate, today);
     await AsyncStorage.setItem(STORAGE_KEYS.spinsUsed, String(next));
-  }, [spinsUsed]);
+    syncUser({ spinDate: today, spinsUsed: next });
+  }, [spinsUsed, syncUser]);
 
   const recordScratchUsed = useCallback(async () => {
     const next = scratchesUsed + 1;
+    const today = todayKey();
     setScratchesUsed(next);
-    await AsyncStorage.setItem(STORAGE_KEYS.scratchDate, todayKey());
+    await AsyncStorage.setItem(STORAGE_KEYS.scratchDate, today);
     await AsyncStorage.setItem(STORAGE_KEYS.scratchesUsed, String(next));
-  }, [scratchesUsed]);
+    syncUser({ scratchDate: today, scratchesUsed: next });
+  }, [scratchesUsed, syncUser]);
 
   const grantBonusSpin = useCallback(async () => {
     const next = bonusSpinsEarned + 1;
+    const today = todayKey();
     setBonusSpinsEarned(next);
-    await AsyncStorage.setItem(STORAGE_KEYS.spinDate, todayKey());
+    await AsyncStorage.setItem(STORAGE_KEYS.spinDate, today);
     await AsyncStorage.setItem(STORAGE_KEYS.bonusSpinsEarned, String(next));
-  }, [bonusSpinsEarned]);
+    syncUser({ spinDate: today, bonusSpinsEarned: next });
+  }, [bonusSpinsEarned, syncUser]);
 
   const claimAdReward = useCallback(
     async (amount: number) => {
       if (adClaimedToday) return false;
+      const today = todayKey();
       setAdClaimedToday(true);
-      await AsyncStorage.setItem(STORAGE_KEYS.adClaimedDate, todayKey());
+      await AsyncStorage.setItem(STORAGE_KEYS.adClaimedDate, today);
+      syncUser({ adClaimedDate: today });
       await addCoinsCore(amount, "ad");
       return true;
     },
-    [adClaimedToday, addCoinsCore],
+    [adClaimedToday, addCoinsCore, syncUser],
   );
 
   const withdraw = useCallback(
@@ -400,6 +503,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       payout: number,
     ) => {
       if (coins < coinAmount || coinAmount < MIN_WITHDRAW) return false;
+      // Record the request in Firestore as pending (admin will approve/reject)
+      if (uid) {
+        try {
+          await addDoc(collection(db, "withdrawals"), {
+            uid,
+            email: user?.email ?? null,
+            displayName: user?.displayName ?? null,
+            coinAmount,
+            currency,
+            method,
+            payout,
+            status: "pending",
+            createdAt: serverTimestamp(),
+          });
+        } catch {
+          // network errors should not block the local debit; the txn log keeps a copy
+        }
+      }
       await addCoinsCore(-coinAmount, "withdraw", {
         currency,
         method,
@@ -407,7 +528,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       return true;
     },
-    [coins, addCoinsCore],
+    [coins, addCoinsCore, uid, user?.email, user?.displayName],
   );
 
   const redeemInviteCode = useCallback(
@@ -418,10 +539,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (redeemedCode) return { ok: false, reason: "already" };
       setRedeemedCode(code);
       await AsyncStorage.setItem(STORAGE_KEYS.redeemedCode, code);
+      syncUser({ redeemedCode: code });
       await addCoinsCore(INVITE_REWARD, "invite");
       return { ok: true };
     },
-    [inviteCode, redeemedCode, addCoinsCore],
+    [inviteCode, redeemedCode, addCoinsCore, syncUser],
   );
 
   const recordInviteSent = useCallback(async () => {
@@ -436,8 +558,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       STORAGE_KEYS.inviteBonusEarned,
       String(nextBonus),
     );
+    syncUser({ invitesSent: nextSent, inviteBonusEarned: nextBonus });
     await addCoinsCore(INVITE_REWARD, "invite");
-  }, [invitesSent, inviteBonusEarned, addCoinsCore]);
+  }, [invitesSent, inviteBonusEarned, addCoinsCore, syncUser]);
 
   const freeSpinsLeft = Math.max(0, DAILY_SPIN_LIMIT - spinsUsed);
   const bonusSpinsLeft = Math.max(

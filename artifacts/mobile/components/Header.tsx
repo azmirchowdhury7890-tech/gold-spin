@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { formatNumber } from "@/i18n/translations";
 
@@ -27,6 +28,7 @@ export function Header({ title, subtitle, showBalance = true, style }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { language, toggleLanguage, coins, t } = useApp();
+  const { logout } = useAuth();
 
   const topPad =
     Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top + 8;
@@ -36,6 +38,13 @@ export function Header({ title, subtitle, showBalance = true, style }: Props) {
       Haptics.selectionAsync().catch(() => {});
     }
     toggleLanguage();
+  };
+
+  const onLogout = () => {
+    if (Platform.OS !== "web") {
+      Haptics.selectionAsync().catch(() => {});
+    }
+    logout().catch(() => {});
   };
 
   return (
@@ -93,6 +102,23 @@ export function Header({ title, subtitle, showBalance = true, style }: Props) {
             <Text style={[styles.langText, { color: colors.foreground }]}>
               {language === "en" ? "EN" : "বাং"}
             </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onLogout}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.surfaceElevated,
+                opacity: pressed ? 0.75 : 1,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={t("signOut")}
+            testID="sign-out"
+          >
+            <Feather name="log-out" size={14} color={colors.gold} />
           </Pressable>
         </View>
       </View>
@@ -156,6 +182,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
+  },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   langText: {
     fontFamily: "Inter_600SemiBold",

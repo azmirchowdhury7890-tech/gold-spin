@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,7 +25,17 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="gold-admin-control"
+        options={{
+          headerShown: true,
+          title: "Admin Panel",
+          headerStyle: { backgroundColor: "#0B0B14" },
+          headerTintColor: "#D4AF37",
+        }}
+      />
     </Stack>
   );
 }
@@ -51,10 +62,12 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0B0B14" }}>
             <KeyboardProvider>
-              <AppProvider>
-                <StatusBar style="light" />
-                <RootLayoutNav />
-              </AppProvider>
+              <AuthProvider>
+                <AppProvider>
+                  <StatusBar style="light" />
+                  <RootLayoutNav />
+                </AppProvider>
+              </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

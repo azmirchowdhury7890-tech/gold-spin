@@ -386,7 +386,9 @@ export default function HomeScreen() {
         body={t("rewardedAdBody")}
         rewardLabel={`+${formatNumber(REWARDED_AD_REWARD, language)} ${t("coins")}`}
         ctaLabel={`${t("watchAd")} · +${formatNumber(REWARDED_AD_REWARD, language)}`}
-        onCompleted={() => claimAdReward(REWARDED_AD_REWARD)}
+        onCompleted={() => {
+          claimAdReward(REWARDED_AD_REWARD);
+        }}
       />
 
       <InviteSheet
