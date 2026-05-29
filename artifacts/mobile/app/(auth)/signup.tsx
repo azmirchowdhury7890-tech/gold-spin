@@ -19,18 +19,23 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth, WELCOME_BONUS } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
-function mapAuthError(code: string | undefined, fallback: string): string {
+function mapAuthError(code: string | undefined, message: string | undefined, fallback: string): string {
   switch (code) {
     case "auth/email-already-in-use":
       return "Email already in use";
     case "auth/invalid-email":
       return "Invalid email address";
     case "auth/weak-password":
-      return "Password is too weak";
+      return "Password must be at least 6 characters";
     case "auth/network-request-failed":
-      return "Network error. Check your connection.";
+      return "Network error. Check internet connection.";
+    case "auth/invalid-api-key":
+    case "auth/app-not-authorized":
+      return "Firebase config error. Check your project settings.";
+    case "auth/operation-not-allowed":
+      return "Email/Password signup not enabled in Firebase console.";
     default:
-      return fallback;
+      return code ? `Error: ${code}` : (message ?? fallback);
   }
 }
 
@@ -68,8 +73,8 @@ export default function SignupScreen() {
       await signUp(email, password, name);
       router.replace("/(tabs)");
     } catch (e: unknown) {
-      const code = (e as { code?: string })?.code;
-      setError(mapAuthError(code, t("signupFailed")));
+      const err = e as { code?: string; message?: string };
+      setError(mapAuthError(err.code, err.message, t("signupFailed")));
     } finally {
       setBusy(false);
     }

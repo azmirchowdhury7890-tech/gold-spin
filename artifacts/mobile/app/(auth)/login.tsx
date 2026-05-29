@@ -19,7 +19,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
-function mapAuthError(code: string | undefined, fallback: string): string {
+function mapAuthError(code: string | undefined, message: string | undefined, fallback: string): string {
   switch (code) {
     case "auth/invalid-email":
       return "Invalid email address";
@@ -30,9 +30,14 @@ function mapAuthError(code: string | undefined, fallback: string): string {
     case "auth/too-many-requests":
       return "Too many attempts. Try again later.";
     case "auth/network-request-failed":
-      return "Network error. Check your connection.";
+      return "Network error. Check internet connection.";
+    case "auth/invalid-api-key":
+    case "auth/app-not-authorized":
+      return "Firebase config error. Check your project settings.";
+    case "auth/operation-not-allowed":
+      return "Email/Password login not enabled in Firebase console.";
     default:
-      return fallback;
+      return code ? `Error: ${code}` : (message ?? fallback);
   }
 }
 
@@ -60,8 +65,8 @@ export default function LoginScreen() {
       await signIn(email, password);
       router.replace("/(tabs)");
     } catch (e: unknown) {
-      const code = (e as { code?: string })?.code;
-      setError(mapAuthError(code, t("loginFailed")));
+      const err = e as { code?: string; message?: string };
+      setError(mapAuthError(err.code, err.message, t("loginFailed")));
     } finally {
       setBusy(false);
     }
