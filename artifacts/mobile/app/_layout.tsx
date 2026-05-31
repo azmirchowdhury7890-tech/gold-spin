@@ -1,3 +1,25 @@
+// Patch fontfaceobserver BEFORE any imports run on web.
+// Must be at the very top of the module so it registers before
+// @expo-google-fonts fires its 6 000 ms rejection.
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "unhandledrejection",
+    (e) => {
+      const msg = String(
+        (e as PromiseRejectionEvent).reason?.message ??
+          (e as PromiseRejectionEvent).reason ??
+          "",
+      );
+      // Silence fontfaceobserver "Xms timeout exceeded" errors
+      if (/\d+ms/.test(msg) && msg.toLowerCase().includes("timeout")) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    },
+    true, // useCapture so we run before Expo's error overlay handler
+  );
+}
+
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -23,6 +45,20 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+// On web: inject Inter from Google Fonts CDN so fontfaceobserver is
+// never invoked for these weights.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const existing = document.getElementById("__goldspin_gfonts");
+  if (!existing) {
+    const link = document.createElement("link");
+    link.id = "__goldspin_gfonts";
+    link.rel = "stylesheet";
+    link.href =
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
+    document.head.appendChild(link);
+  }
+}
+
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
@@ -42,44 +78,32 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  // On web: pass empty object so useFonts resolves instantly without
+  // invoking fontfaceobserver at all. Fonts come from the CDN link above.
+  const isWeb = Platform.OS === "web";
 
-  // Force-show the app after 4s even if fonts haven't loaded yet.
-  // This prevents fontfaceobserver's 6000ms timeout from crashing the app.
+  const [fontsLoaded, fontError] = useFonts(
+    isWeb
+      ? {}
+      : {
+          Inter_400Regular,
+          Inter_500Medium,
+          Inter_600SemiBold,
+          Inter_700Bold,
+        },
+  );
+
+  // Safety net: show app after 3 s regardless of font state.
   const [forceReady, setForceReady] = useState(false);
-
   useEffect(() => {
-    const timer = setTimeout(() => setForceReady(true), 4000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // On web: swallow unhandled fontfaceobserver timeout rejections so they
-  // don't surface as a crash overlay.
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const handler = (event: Event) => {
-      const reason = (event as PromiseRejectionEvent).reason;
-      const msg: string =
-        reason?.message ?? (typeof reason === "string" ? reason : "");
-      if (msg.includes("timeout") || msg.includes("fontface")) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener("unhandledrejection", handler);
-    return () => window.removeEventListener("unhandledrejection", handler);
+    const t = setTimeout(() => setForceReady(true), 3000);
+    return () => clearTimeout(t);
   }, []);
 
   const ready = fontsLoaded || !!fontError || forceReady;
 
   useEffect(() => {
-    if (ready) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
+    if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
   if (!ready) return null;
