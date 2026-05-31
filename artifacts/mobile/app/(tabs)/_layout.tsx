@@ -105,6 +105,19 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="leaderboard"
+        options={{
+          title: t("leaderboard"),
+          tabBarIcon: ({ color, focused }) => (
+            <Feather
+              name="award"
+              size={focused ? 24 : 22}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="wallet"
         options={{
           title: t("wallet"),
