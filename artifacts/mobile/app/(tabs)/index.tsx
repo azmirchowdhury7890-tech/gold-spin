@@ -1,7 +1,7 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AdBanner } from "@/components/AdBanner";
+import { CheckInModal } from "@/components/CheckInModal";
 import { Header } from "@/components/Header";
 import { InviteSheet } from "@/components/InviteSheet";
 import { RewardedAdModal } from "@/components/RewardedAdModal";
@@ -41,9 +42,19 @@ export default function HomeScreen() {
     scratchesUsed,
     adClaimedToday,
     claimAdReward,
+    checkInAvailable,
   } = useApp();
   const [adVisible, setAdVisible] = useState(false);
   const [inviteVisible, setInviteVisible] = useState(false);
+  const [checkInVisible, setCheckInVisible] = useState(false);
+
+  // Auto-show check-in modal once on mount if today's bonus not yet claimed
+  useEffect(() => {
+    if (checkInAvailable) {
+      const timer = setTimeout(() => setCheckInVisible(true), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [checkInAvailable]);
 
   const tasks = [
     {
@@ -258,6 +269,12 @@ export default function HomeScreen() {
             }
             onPress={() => router.push("/scratch")}
           />
+          <QuickAction
+            label={t("dailyCheckIn")}
+            icon={<Feather name="gift" size={26} color={checkInAvailable ? colors.gold : colors.mutedForeground} />}
+            onPress={() => setCheckInVisible(true)}
+            badge={checkInAvailable}
+          />
         </View>
 
         {/* Daily tasks */}
@@ -395,6 +412,11 @@ export default function HomeScreen() {
         visible={inviteVisible}
         onClose={() => setInviteVisible(false)}
       />
+
+      <CheckInModal
+        visible={checkInVisible}
+        onClose={() => setCheckInVisible(false)}
+      />
     </View>
   );
 }
@@ -403,10 +425,12 @@ function QuickAction({
   label,
   icon,
   onPress,
+  badge,
 }: {
   label: string;
   icon: React.ReactNode;
   onPress: () => void;
+  badge?: boolean;
 }) {
   const colors = useColors();
   return (
@@ -420,23 +444,33 @@ function QuickAction({
       ]}
     >
       <LinearGradient
-        colors={["#1F1F2C", "#15151F"]}
+        colors={badge ? ["#2A2000", "#15151F"] : ["#1F1F2C", "#15151F"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.quick, { borderColor: colors.border }]}
+        style={[
+          styles.quick,
+          {
+            borderColor: badge ? colors.gold : colors.border,
+            borderWidth: badge ? 1.5 : 1,
+          },
+        ]}
       >
-        <View style={[styles.quickIcon, { borderColor: colors.gold }]}>
+        <View style={[styles.quickIcon, { borderColor: badge ? colors.gold : colors.border }]}>
           {icon}
         </View>
-        <Text style={[styles.quickLabel, { color: colors.foreground }]}>
+        <Text style={[styles.quickLabel, { color: badge ? colors.gold : colors.foreground }]}>
           {label}
         </Text>
-        <Feather
-          name="arrow-right"
-          size={16}
-          color={colors.gold}
-          style={{ position: "absolute", top: 14, right: 14 }}
-        />
+        {badge ? (
+          <View style={styles.badgeDot} />
+        ) : (
+          <Feather
+            name="arrow-right"
+            size={16}
+            color={colors.gold}
+            style={{ position: "absolute", top: 14, right: 14 }}
+          />
+        )}
       </LinearGradient>
     </Pressable>
   );
@@ -606,6 +640,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: -0.2,
     marginTop: 12,
+  },
+  badgeDot: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#D4AF37",
   },
   sectionHeader: {
     flexDirection: "row",

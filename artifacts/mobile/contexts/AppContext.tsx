@@ -41,6 +41,7 @@ const STORAGE_KEYS = {
   redeemedCode: "@goldspin/redeemedCode",
   invitesSent: "@goldspin/invitesSent",
   inviteBonusEarned: "@goldspin/inviteBonusEarned",
+  checkInClaimedDate: "@goldspin/checkInClaimedDate",
 } as const;
 
 export const DAILY_SPIN_LIMIT = 5;
@@ -122,6 +123,9 @@ type Ctx = {
   redeemInviteCode: (code: string) => Promise<RedeemResult>;
   recordInviteSent: () => Promise<void>;
 
+  checkInAvailable: boolean;
+  claimCheckIn: () => Promise<number>;
+
   transactions: Transaction[];
 };
 
@@ -176,6 +180,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [redeemedCode, setRedeemedCode] = useState<string | null>(null);
   const [invitesSent, setInvitesSent] = useState<number>(0);
   const [inviteBonusEarned, setInviteBonusEarned] = useState<number>(0);
+  const [checkInAvailable, setCheckInAvailable] = useState<boolean>(false);
 
   const syncUser = useCallback(
     (updates: Record<string, unknown>) => {
@@ -372,6 +377,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (invitesStr) setInvitesSent(Number(invitesStr) || 0);
         if (inviteBonusStr)
           setInviteBonusEarned(Number(inviteBonusStr) || 0);
+
+        // Daily check-in: available if not yet claimed today
+        const checkInDate = await AsyncStorage.getItem(
+          STORAGE_KEYS.checkInClaimedDate,
+        );
+        setCheckInAvailable(checkInDate !== today);
       } finally {
         setReady(true);
       }
@@ -562,6 +573,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await addCoinsCore(INVITE_REWARD, "invite");
   }, [invitesSent, inviteBonusEarned, addCoinsCore, syncUser]);
 
+  const CHECKIN_REWARDS = [100, 200, 300, 400, 500, 700, 1_000];
+
+  const claimCheckIn = useCallback(async (): Promise<number> => {
+    const today = todayKey();
+    const reward =
+      CHECKIN_REWARDS[(Math.max(1, streak) - 1) % CHECKIN_REWARDS.length];
+    setCheckInAvailable(false);
+    await AsyncStorage.setItem(STORAGE_KEYS.checkInClaimedDate, today);
+    await addCoinsCore(reward, "bonus");
+    syncUser({ checkInClaimedDate: today });
+    return reward;
+  }, [streak, addCoinsCore, syncUser]);
+
   const freeSpinsLeft = Math.max(0, DAILY_SPIN_LIMIT - spinsUsed);
   const bonusSpinsLeft = Math.max(
     0,
@@ -599,6 +623,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       withdraw,
       redeemInviteCode,
       recordInviteSent,
+      checkInAvailable,
+      claimCheckIn,
       transactions,
     }),
     [
@@ -629,6 +655,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       withdraw,
       redeemInviteCode,
       recordInviteSent,
+      checkInAvailable,
+      claimCheckIn,
       transactions,
     ],
   );
