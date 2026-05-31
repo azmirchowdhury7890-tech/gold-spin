@@ -25,7 +25,7 @@ import {
 import { useColors } from "@/hooks/useColors";
 import { formatNumber } from "@/i18n/translations";
 
-const REWARDED_AD_REWARD = 50;
+const REWARDED_AD_REWARD = 500;
 
 export default function HomeScreen() {
   const colors = useColors();

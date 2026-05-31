@@ -45,7 +45,7 @@ const STORAGE_KEYS = {
 
 export const DAILY_SPIN_LIMIT = 5;
 export const DAILY_SCRATCH_LIMIT = 5;
-export const INVITE_REWARD = 100;
+export const INVITE_REWARD = 1000;
 
 // Currency conversion
 export const COINS_PER_BDT = 1000;

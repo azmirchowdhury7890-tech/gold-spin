@@ -23,14 +23,14 @@ import { useColors } from "@/hooks/useColors";
 import { formatNumber } from "@/i18n/translations";
 
 const SEGMENTS = [
-  { value: 10, color: "#D4AF37" },
-  { value: 25, color: "#F0D87C" },
-  { value: 5, color: "#A8842A" },
-  { value: 50, color: "#FFD86B" },
-  { value: 15, color: "#C49A2A" },
-  { value: 100, color: "#FFE89A" },
-  { value: 20, color: "#B8902B" },
-  { value: 75, color: "#E5C46A" },
+  { value: 100, color: "#D4AF37" },
+  { value: 250, color: "#F0D87C" },
+  { value: 150, color: "#A8842A" },
+  { value: 500, color: "#FFD86B" },
+  { value: 200, color: "#C49A2A" },
+  { value: 350, color: "#FFE89A" },
+  { value: 300, color: "#B8902B" },
+  { value: 400, color: "#E5C46A" },
 ];
 
 export default function SpinScreen() {
