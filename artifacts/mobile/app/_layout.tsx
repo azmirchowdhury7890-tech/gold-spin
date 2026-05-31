@@ -9,7 +9,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -48,13 +49,40 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+  // Force-show the app after 4s even if fonts haven't loaded yet.
+  // This prevents fontfaceobserver's 6000ms timeout from crashing the app.
+  const [forceReady, setForceReady] = useState(false);
 
-  if (!fontsLoaded && !fontError) return null;
+  useEffect(() => {
+    const timer = setTimeout(() => setForceReady(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // On web: swallow unhandled fontfaceobserver timeout rejections so they
+  // don't surface as a crash overlay.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const handler = (event: Event) => {
+      const reason = (event as PromiseRejectionEvent).reason;
+      const msg: string =
+        reason?.message ?? (typeof reason === "string" ? reason : "");
+      if (msg.includes("timeout") || msg.includes("fontface")) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
+
+  const ready = fontsLoaded || !!fontError || forceReady;
+
+  useEffect(() => {
+    if (ready) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <SafeAreaProvider>
