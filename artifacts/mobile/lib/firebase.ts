@@ -5,12 +5,13 @@ import { getFirestore } from "firebase/firestore";
 import { Platform } from "react-native";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCtmTybwNAPLQe_8cXG-hYF9Z0O_3-nL3k",
+  apiKey: "AIzaSyCtmTyhwNAPLQe_8cXGq_5tmATRWjlgIAM",
   authDomain: "gold-spin-92e17.firebaseapp.com",
   projectId: "gold-spin-92e17",
-  storageBucket: "gold-spin-92e17.appspot.com",
+  storageBucket: "gold-spin-92e17.firebasestorage.app",
   messagingSenderId: "618944124571",
-  appId: "1:618944124571:web:9c1221f759600f64c6734c",
+  appId: "1:618944124571:web:29f34b539f46fc6458183e",
+  measurementId: "G-PNBPVTEGK0",
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
