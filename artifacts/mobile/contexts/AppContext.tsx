@@ -23,6 +23,7 @@ import {
   translations,
 } from "@/i18n/translations";
 import { db } from "@/lib/firebase";
+import { ensureDailyReminder } from "@/lib/notifications";
 
 const STORAGE_KEYS = {
   language: "@goldspin/language",
@@ -583,8 +584,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEYS.checkInClaimedDate, today);
     await addCoinsCore(reward, "bonus");
     syncUser({ checkInClaimedDate: today });
+    // Schedule (or refresh) tomorrow's daily reminder after a successful claim
+    ensureDailyReminder().catch(() => {});
     return reward;
   }, [streak, addCoinsCore, syncUser]);
+
+  // Request notification permission and ensure daily reminder once per login
+  useEffect(() => {
+    if (!uid) return;
+    ensureDailyReminder().catch(() => {});
+  }, [uid]);
 
   const freeSpinsLeft = Math.max(0, DAILY_SPIN_LIMIT - spinsUsed);
   const bonusSpinsLeft = Math.max(
