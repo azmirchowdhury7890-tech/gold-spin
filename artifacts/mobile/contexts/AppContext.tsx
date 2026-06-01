@@ -34,7 +34,8 @@ const STORAGE_KEYS = {
   bonusSpinsEarned: "@goldspin/bonusSpinsEarned",
   scratchDate: "@goldspin/scratchDate",
   scratchesUsed: "@goldspin/scratchesUsed",
-  adClaimedDate: "@goldspin/adClaimedDate",
+  adWatchedDate: "@goldspin/adWatchedDate",
+  dailyAdsWatched: "@goldspin/dailyAdsWatched",
   streak: "@goldspin/streak",
   streakDate: "@goldspin/streakDate",
   txns: "@goldspin/txns",
@@ -47,6 +48,7 @@ const STORAGE_KEYS = {
 
 export const DAILY_SPIN_LIMIT = 5;
 export const DAILY_SCRATCH_LIMIT = 5;
+export const DAILY_AD_LIMIT = 100;
 export const INVITE_REWARD = 1000;
 
 // Currency conversion
@@ -97,7 +99,8 @@ type Ctx = {
 
   spinsUsed: number;
   scratchesUsed: number;
-  adClaimedToday: boolean;
+  dailyAdsWatched: number;
+  adLimitReached: boolean;
 
   freeSpinsLeft: number;
   bonusSpinsEarned: number;
@@ -174,7 +177,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [spinsUsed, setSpinsUsed] = useState<number>(0);
   const [bonusSpinsEarned, setBonusSpinsEarned] = useState<number>(0);
   const [scratchesUsed, setScratchesUsed] = useState<number>(0);
-  const [adClaimedToday, setAdClaimedToday] = useState<boolean>(false);
+  const [dailyAdsWatched, setDailyAdsWatched] = useState<number>(0);
   const [streak, setStreak] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [inviteCode, setInviteCode] = useState<string>("");
@@ -229,7 +232,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setScratchesUsed(0);
         }
 
-        setAdClaimedToday(data.adClaimedDate === today);
+        const sameAdDay = data.adWatchedDate === today;
+        setDailyAdsWatched(
+          sameAdDay && typeof data.dailyAdsWatched === "number"
+            ? data.dailyAdsWatched
+            : 0,
+        );
 
         if ((sameSpinDay || sameScratchDay) && typeof data.todayEarnings === "number") {
           setTodayEarnings(data.todayEarnings);
@@ -275,7 +283,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           bonusStr,
           scratchDate,
           scratchesStr,
-          adDate,
+          adWatchedDate,
+          dailyAdsWatchedStr,
           streakStr,
           streakDate,
           txnsStr,
@@ -292,7 +301,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(STORAGE_KEYS.bonusSpinsEarned),
           AsyncStorage.getItem(STORAGE_KEYS.scratchDate),
           AsyncStorage.getItem(STORAGE_KEYS.scratchesUsed),
-          AsyncStorage.getItem(STORAGE_KEYS.adClaimedDate),
+          AsyncStorage.getItem(STORAGE_KEYS.adWatchedDate),
+          AsyncStorage.getItem(STORAGE_KEYS.dailyAdsWatched),
           AsyncStorage.getItem(STORAGE_KEYS.streak),
           AsyncStorage.getItem(STORAGE_KEYS.streakDate),
           AsyncStorage.getItem(STORAGE_KEYS.txns),
@@ -324,7 +334,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await AsyncStorage.setItem(STORAGE_KEYS.scratchesUsed, "0");
         }
 
-        if (adDate === today) setAdClaimedToday(true);
+        if (adWatchedDate === today && dailyAdsWatchedStr) {
+          setDailyAdsWatched(Number(dailyAdsWatchedStr) || 0);
+        } else {
+          setDailyAdsWatched(0);
+        }
 
         if (spinDate === today || scratchDate === today) {
           setTodayEarnings(earningsStr ? Number(earningsStr) || 0 : 0);
@@ -496,15 +510,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const claimAdReward = useCallback(
     async (amount: number) => {
-      if (adClaimedToday) return false;
+      if (dailyAdsWatched >= DAILY_AD_LIMIT) return false;
       const today = todayKey();
-      setAdClaimedToday(true);
-      await AsyncStorage.setItem(STORAGE_KEYS.adClaimedDate, today);
-      syncUser({ adClaimedDate: today });
+      const next = dailyAdsWatched + 1;
+      setDailyAdsWatched(next);
+      await AsyncStorage.setItem(STORAGE_KEYS.adWatchedDate, today);
+      await AsyncStorage.setItem(STORAGE_KEYS.dailyAdsWatched, String(next));
+      syncUser({ adWatchedDate: today, dailyAdsWatched: next });
       await addCoinsCore(amount, "ad");
       return true;
     },
-    [adClaimedToday, addCoinsCore, syncUser],
+    [dailyAdsWatched, addCoinsCore, syncUser],
   );
 
   const withdraw = useCallback(
@@ -614,7 +630,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       streak,
       spinsUsed,
       scratchesUsed,
-      adClaimedToday,
+      dailyAdsWatched,
+      adLimitReached: dailyAdsWatched >= DAILY_AD_LIMIT,
       freeSpinsLeft,
       bonusSpinsEarned,
       bonusSpinsLeft,
@@ -647,7 +664,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       streak,
       spinsUsed,
       scratchesUsed,
-      adClaimedToday,
+      dailyAdsWatched,
       freeSpinsLeft,
       bonusSpinsEarned,
       bonusSpinsLeft,

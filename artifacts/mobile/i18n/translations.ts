@@ -176,6 +176,11 @@ export const translations = {
     refresh: "Refresh",
     noWithdrawals: "No withdrawal requests yet",
     noUsers: "No users yet",
+
+    // Daily ad limit
+    adsWatchedToday: "Ads Watched Today",
+    adLimitReached: "Daily limit reached! Come back tomorrow.",
+    adLimitReachedShort: "Come Back Tomorrow",
   },
   bn: {
     appName: "গোল্ড স্পিন",
@@ -352,6 +357,11 @@ export const translations = {
     refresh: "রিফ্রেশ",
     noWithdrawals: "এখনও কোনো উত্তোলন অনুরোধ নেই",
     noUsers: "এখনও কোনো ইউজার নেই",
+
+    // Daily ad limit
+    adsWatchedToday: "আজকের বিজ্ঞাপন দেখা হয়েছে",
+    adLimitReached: "দৈনিক সীমা শেষ! আগামীকাল আবার আসুন।",
+    adLimitReachedShort: "আগামীকাল আসুন",
   },
 } as const;
 

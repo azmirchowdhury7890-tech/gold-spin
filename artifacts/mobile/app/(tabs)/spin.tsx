@@ -43,6 +43,8 @@ export default function SpinScreen() {
     freeSpinsLeft,
     bonusSpinsLeft,
     totalSpinsLeft,
+    dailyAdsWatched,
+    adLimitReached,
     recordSpinUsed,
     grantBonusSpin,
     addCoins,
@@ -66,15 +68,13 @@ export default function SpinScreen() {
   );
 
   const handleWatchAdForSpin = async () => {
+    if (adLimitReached) return;
     const result = await showRewardedAd();
     if (result === "rewarded") {
-      // Real ad completed — grant bonus spin directly
       await grantBonusSpin();
     } else if (result === "unavailable" || result === "error") {
-      // No real ad available (web / emulator) — fall back to simulated modal
       setAdVisible(true);
     }
-    // "closed_early" → user skipped, no reward granted
   };
 
   const onSpin = async () => {
@@ -113,11 +113,13 @@ export default function SpinScreen() {
   const isBonusOnly = freeSpinsLeft === 0 && bonusSpinsLeft > 0;
   const ctaLabel = spinning
     ? t("spinning")
-    : needsAd
-      ? t("watchAdForSpin")
-      : isBonusOnly
-        ? `${t("bonusSpin")}`
-        : t("spinNow");
+    : needsAd && adLimitReached
+      ? t("adLimitReachedShort")
+      : needsAd
+        ? t("watchAdForSpin")
+        : isBonusOnly
+          ? `${t("bonusSpin")}`
+          : t("spinNow");
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -219,9 +221,19 @@ export default function SpinScreen() {
             </LinearGradient>
           </Pressable>
 
-          {needsAd && (
+          {needsAd && !adLimitReached && (
             <Text style={[styles.helpText, { color: colors.mutedForeground }]}>
               {t("watchAdSpinBody")}
+            </Text>
+          )}
+          {needsAd && adLimitReached && (
+            <Text style={[styles.helpText, { color: "#E07A2C" }]}>
+              {t("adLimitReached")}
+            </Text>
+          )}
+          {needsAd && !adLimitReached && (
+            <Text style={[styles.helpText, { color: colors.mutedForeground }]}>
+              {`${t("adsWatchedToday")}: ${formatNumber(dailyAdsWatched, language)} / 100`}
             </Text>
           )}
         </LinearGradient>

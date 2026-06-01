@@ -18,6 +18,7 @@ import { Header } from "@/components/Header";
 import { InviteSheet } from "@/components/InviteSheet";
 import { RewardedAdModal } from "@/components/RewardedAdModal";
 import {
+  DAILY_AD_LIMIT,
   DAILY_SPIN_LIMIT,
   coinsToBdt,
   coinsToUsd,
@@ -41,7 +42,8 @@ export default function HomeScreen() {
     streak,
     spinsUsed,
     scratchesUsed,
-    adClaimedToday,
+    dailyAdsWatched,
+    adLimitReached,
     claimAdReward,
     checkInAvailable,
   } = useApp();
@@ -58,15 +60,13 @@ export default function HomeScreen() {
   }, [checkInAvailable]);
 
   const handleWatchAd = async () => {
+    if (adLimitReached) return;
     const result = await showRewardedAd();
     if (result === "rewarded") {
-      // Real AdMob ad completed — grant 500 coins directly
       await claimAdReward(REWARDED_AD_REWARD);
     } else if (result === "unavailable" || result === "error") {
-      // No real ad available (web / no network) — fall back to simulated modal
       setAdVisible(true);
     }
-    // "closed_early" → user dismissed ad, no reward
   };
 
   const tasks = [
@@ -75,6 +75,7 @@ export default function HomeScreen() {
       icon: "rotate-360" as const,
       iconLib: "mcci" as const,
       title: t("spinTask"),
+      subtitle: null as string | null,
       progress: Math.min(1, spinsUsed / 1),
       done: spinsUsed >= 1,
       action: () => router.push("/spin"),
@@ -85,6 +86,7 @@ export default function HomeScreen() {
       icon: "card-bulleted-outline" as const,
       iconLib: "mcci" as const,
       title: t("scratchTask"),
+      subtitle: null as string | null,
       progress: Math.min(1, scratchesUsed / 1),
       done: scratchesUsed >= 1,
       action: () => router.push("/scratch"),
@@ -95,10 +97,13 @@ export default function HomeScreen() {
       icon: "play-circle" as const,
       iconLib: "feather" as const,
       title: t("watchAdTask"),
-      progress: adClaimedToday ? 1 : 0,
-      done: adClaimedToday,
+      subtitle: adLimitReached
+        ? t("adLimitReached")
+        : `${t("adsWatchedToday")}: ${formatNumber(dailyAdsWatched, language)} / ${formatNumber(DAILY_AD_LIMIT, language)}`,
+      progress: Math.min(1, dailyAdsWatched / DAILY_AD_LIMIT),
+      done: adLimitReached,
       action: handleWatchAd,
-      cta: t("watchAd"),
+      cta: adLimitReached ? t("adLimitReachedShort") : t("watchAd"),
     },
   ];
 
@@ -335,6 +340,22 @@ export default function HomeScreen() {
                 <Text style={[styles.taskTitle, { color: colors.foreground }]}>
                   {task.title}
                 </Text>
+                {task.subtitle !== null && (
+                  <Text
+                    style={[
+                      styles.taskSubtitle,
+                      {
+                        color:
+                          task.key === "ad" && adLimitReached
+                            ? "#E07A2C"
+                            : colors.mutedForeground,
+                      },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {task.subtitle}
+                  </Text>
+                )}
                 <View
                   style={[styles.progressBg, { backgroundColor: colors.muted }]}
                 >
@@ -369,7 +390,7 @@ export default function HomeScreen() {
                   ]}
                   numberOfLines={1}
                 >
-                  {task.done ? t("completed") : task.cta}
+                  {task.cta}
                 </Text>
               </Pressable>
             </View>
@@ -709,6 +730,11 @@ const styles = StyleSheet.create({
   taskTitle: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 13,
+  },
+  taskSubtitle: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    lineHeight: 15,
   },
   progressBg: {
     height: 5,
