@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "expo-notifications": "^56.0.15",
-    "firebase": "^12.12.1"
+    "firebase": "^12.12.1",
+    "react-native-google-mobile-ads": "^16.3.3"
   }
 }

@@ -19,6 +19,7 @@ import { RewardModal } from "@/components/RewardModal";
 import { RewardedAdModal } from "@/components/RewardedAdModal";
 import { SpinWheel, type SpinWheelHandle } from "@/components/SpinWheel";
 import { DAILY_SPIN_LIMIT, useApp } from "@/contexts/AppContext";
+import { showRewardedAd } from "@/lib/admob";
 import { useColors } from "@/hooks/useColors";
 import { formatNumber } from "@/i18n/translations";
 
@@ -64,11 +65,22 @@ export default function SpinScreen() {
     [],
   );
 
+  const handleWatchAdForSpin = async () => {
+    const result = await showRewardedAd();
+    if (result === "rewarded") {
+      // Real ad completed — grant bonus spin directly
+      await grantBonusSpin();
+    } else if (result === "unavailable" || result === "error") {
+      // No real ad available (web / emulator) — fall back to simulated modal
+      setAdVisible(true);
+    }
+    // "closed_early" → user skipped, no reward granted
+  };
+
   const onSpin = async () => {
     if (spinning) return;
     if (totalSpinsLeft <= 0) {
-      // Open ad to earn bonus spin
-      setAdVisible(true);
+      await handleWatchAdForSpin();
       return;
     }
     if (Platform.OS !== "web") {
@@ -91,6 +103,7 @@ export default function SpinScreen() {
     });
   };
 
+  // Fallback for simulated modal (web / ad load failure)
   const onAdCompleted = async () => {
     await grantBonusSpin();
   };

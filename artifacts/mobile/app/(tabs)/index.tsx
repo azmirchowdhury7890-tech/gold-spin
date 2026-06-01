@@ -23,6 +23,7 @@ import {
   coinsToUsd,
   useApp,
 } from "@/contexts/AppContext";
+import { showRewardedAd } from "@/lib/admob";
 import { useColors } from "@/hooks/useColors";
 import { formatNumber } from "@/i18n/translations";
 
@@ -56,6 +57,18 @@ export default function HomeScreen() {
     }
   }, [checkInAvailable]);
 
+  const handleWatchAd = async () => {
+    const result = await showRewardedAd();
+    if (result === "rewarded") {
+      // Real AdMob ad completed — grant 500 coins directly
+      await claimAdReward(REWARDED_AD_REWARD);
+    } else if (result === "unavailable" || result === "error") {
+      // No real ad available (web / no network) — fall back to simulated modal
+      setAdVisible(true);
+    }
+    // "closed_early" → user dismissed ad, no reward
+  };
+
   const tasks = [
     {
       key: "spin",
@@ -84,7 +97,7 @@ export default function HomeScreen() {
       title: t("watchAdTask"),
       progress: adClaimedToday ? 1 : 0,
       done: adClaimedToday,
-      action: () => setAdVisible(true),
+      action: handleWatchAd,
       cta: t("watchAd"),
     },
   ];
