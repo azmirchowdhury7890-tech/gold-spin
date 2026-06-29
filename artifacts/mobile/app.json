@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "Gold Spin",
-    "slug": "mobile",
+    "slug": "gold-spin",
+    "owner": "hridoy7890",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -48,6 +49,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9c9ff932-4470-4529-83b0-0f9eb3cbd628"
+      }
     }
   }
 }
